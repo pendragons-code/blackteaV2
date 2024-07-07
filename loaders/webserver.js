@@ -1,4 +1,5 @@
 const express = require("express");
+const expressStaticGzip = require("express-static-gzip");
 const http = require("http");
 const socketio = require("socket.io");
 const helmet = require("helmet");
@@ -45,7 +46,9 @@ app.use((req, res, next) => {
 
 // app.set("trust proxy", true);
 
-app.use("/", expressStaticGzip(join(__dirname, "../client/public"), {
+app.use("/", route);
+
+app.use("/", expressStaticGzip(join(__dirname, "../client/public"), { //OMG i love this so much
 	enableBrotli: true,
 	orderPreference: ["br", "gzip"],
 	cacheControl: true,
@@ -53,7 +56,6 @@ app.use("/", expressStaticGzip(join(__dirname, "../client/public"), {
 	maxAge: "30d"
 }));
 
-app.use("/", route);
 app.use(function(req, res) {
 	res.sendFile(join(__dirname, "../client/public/html/index.html")); // if the user gives an invalid resource, they will still get the main page
 });
