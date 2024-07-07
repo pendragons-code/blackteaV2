@@ -1,0 +1,5 @@
+{
+	"maxRooms": 50,
+	"maxPlayersPerRoom": 4,
+	"maxExistenceDurationHours": 2
+}

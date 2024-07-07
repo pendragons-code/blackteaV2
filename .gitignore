@@ -1,0 +1,7 @@
+node_modules
+.irrelevant
+.personal
+test.js
+.env.production
+.env.development
+package-lock.json
