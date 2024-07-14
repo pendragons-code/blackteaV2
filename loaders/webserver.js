@@ -57,7 +57,7 @@ app.use("/", expressStaticGzip(join(__dirname, "../client/public"), { //OMG i lo
 }));
 
 app.use(function(req, res) {
-	res.sendFile(join(__dirname, "../client/public/html/index.html")); // if the user gives an invalid resource, they will still get the main page
+	res.sendFile(join(__dirname, "../client/public/html/index.html")); // ifthe user gives an invalid resource, they will still get the main page
 });
 
 server.listen((port), async () => {
