@@ -23,6 +23,7 @@ class gameRoom {
 		this.playersDoneSettingFood = 0;
 		this.currentTurn = creatorID;
 		this.usedWords = new Set();
+		this.timeOut = null;
 	}
 
 	idToIndex(playerID) {
@@ -37,7 +38,7 @@ class gameRoom {
 
 	broadcast(eventName, details) {
 		try {
-			if(details) return io.to(this.roomID).emit(eventName, details);
+			if (details) return io.to(this.roomID).emit(eventName, details);
 			return io.to(this.roomID).emit(eventName);
 		} catch (e) {
 			logError(e);
@@ -47,7 +48,7 @@ class gameRoom {
 
 	sendToPlayer(playerID, eventName, details) {
 		try {
-			if(!details) return io.to(playerID).emit(eventName);
+			if (!details) return io.to(playerID).emit(eventName);
 			return io.to(playerID).emit(eventName, details);
 		} catch (e) {
 			logError(e);
@@ -76,7 +77,7 @@ class gameRoom {
 			delete this.players[`${playerID}`];
 			--this.numberOfOnlinePlayers;
 			await this.broadcast("playerLeft", { playerIndex: this.idToIndex(playerID) });
-			if(this.numberOfOnlinePlayers < 2 && this.gameRunning) {
+			if (this.numberOfOnlinePlayers < 2 && this.gameRunning) {
 				let roomID = this.roomID;
 				this.broadcast("playerCountLow");
 				console.log(`closing ${roomID}`);
@@ -90,43 +91,69 @@ class gameRoom {
 	}
 
 	// next turn
-	nextTurn(playerID) {
-		let playerArray = Object.keys(this.players);
-		currentIndex = playerArray.indexOf(this.currentTurn);
-		
-		let nextTurnIndex = currentIndex + 1;
-		if(currentIndex >= playerArray.length) nextTurnIndex = 0; // wrapping
-
-		this.currentTurn = playerArray[`${nextTurnIndex}`];
-		let playerNextNumber = this.idToIndex(this.currentTurn);
-
-		this.broadcast("nextTurn", { playerNextNumber });
-		this.sendToPlayer(this.currentTurn, "yourTurn");
+	nextTurn() {
+		try {
+			let playerArray = Object.keys(this.players);
+			currentIndex = playerArray.indexOf(this.currentTurn);
+			let nextTurnIndex = currentIndex + 1;
+			if (currentIndex >= playerArray.length) nextTurnIndex = 0; // wrapping
+			this.currentTurn = playerArray[`${nextTurnIndex}`];
+			let playerNextNumber = this.idToIndex(this.currentTurn);
+			this.broadcast("nextTurn", { playerNextNumber });
+			this.sendToPlayer(this.currentTurn, "yourTurn");
+		} catch (e) {
+			logError(e);
+			io.to(this.roomID).emit("redirectToMain", "An Unknown server side error has occured.");
+		}
 	}
 
 	// start game
+	startGame() {
+		try {
+			let creatorID = this.creatorID;
+			this.broadcast("gameStart", { totalOnlinePlayers: this.numberOfOnlinePlayers });
+			this.gameRunning = true;
+			this.broadcast("nextTurn", { playerNumber: this.idToIndex(creatorID) });
+			this.sendToPlayer(creatorID, "yourTurn", { playerNumber: this.idToIndex(creatorID) });
+			// first turn time out
+			this.timeOut = setTimeout(() => {
+				if (this.currentTurn !== this.creatorID) return; // just in case
+				this.broadcast("timesup", { playerNumber: this.idToIndex(this.creatorID) });
+				this.sendToPlayer(this.creatorID, "alert", "You took too long!");
+				return this.nextTurn(this.currentTurn);
+			}, 11000); // 1 round is 10 seconds, but we have thi function listen for 11 because latency
+		} catch (e) {
+			logError(e);
+			io.to(this.roomID).emit("redirectToMain", "An Unknown server side error has occured.");
+		}
+	}
+
 	// end game
 	// add points
+
 	// playRound
+	playRound() {
+		// clear timeout from this.timeOut
+	}
 
 	// winner
 	async determineWinner() {
 		try {
 			let highestScore = 0;
 			let playersWithHighestScore = [];
-			for(let player in scores) {
-				if(scores.hasOwnProperty(player)) {
+			for (let player in scores) {
+				if (scores.hasOwnProperty(player)) {
 					let score = scores[player].score;
-					if(score > highestScore) {
+					if (score > highestScore) {
 						highestScore = score;
 						playersWithHighestScore = [player];
-					} else if(score === highestScore) {
+					} else if (score === highestScore) {
 						playersWithHighestScore.push(player);
 					}
 				}
 			}
 			// the results return IDs and this is a note to people before using, remember to convert to player Indexes
-			if(playersWithHighestScore.length > 1) return { playersWithHighestScore: playersWithHighestScore, victoryStatus: "tie" }; // returns an array e.g. [player1ID player2ID]
+			if (playersWithHighestScore.length > 1) return { playersWithHighestScore: playersWithHighestScore, victoryStatus: "tie" }; // returns an array e.g. [player1ID player2ID]
 			return { playersWithHighestScore: playersWithHighestScore, victoryStatus: "win" }; // returns an array also e.g.[player1ID]
 		} catch (e) {
 			logError(e);
