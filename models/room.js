@@ -20,10 +20,10 @@ class gameRoom {
 		this.numberOfUniqueIDs = 1; // this tracks the number of players that have joined the room and will track by using unique ids, this is important as we can use this to assign a player an index
 		this.numberOfOnlinePlayers = 1; // this tracks the number of players that are online in the room
 		this.winner = "";
-		this.playersDoneSettingFood = 0;
 		this.currentTurn = creatorID;
 		this.usedWords = new Set();
 		this.timeOut = null;
+		this.lastWord;
 	}
 
 	idToIndex(playerID) {
@@ -91,15 +91,23 @@ class gameRoom {
 	}
 
 	// next turn
-	// so the reason why I have the function not be created with play round at the same time is because I wanted to have 1 function do one thing
 	nextTurn() {
 		try {
+			if(this.timeOut) clearTimeout(this.timeOut);
 			let playerArray = Object.keys(this.players);
 			currentIndex = playerArray.indexOf(this.currentTurn);
 			let nextTurnIndex = currentIndex + 1;
 			if(currentIndex >= playerArray.length) nextTurnIndex = 0; // wrapping
 			this.currentTurn = playerArray[`${nextTurnIndex}`];
 			let playerNextNumber = this.idToIndex(this.currentTurn);
+
+			let latestPlayerID = this.currentTurn;
+			this.timeOut = setTimeout(() => {
+				this.broadcast("timesup", { playerNumber: this.idToIndex(latestPlayerID) });
+				this.sendToPlayer(latestPlayerID, "alert", "You took too long!");
+				return this.nextTurn(latestPlayerID);
+			}, 11000);
+
 			this.broadcast("nextTurn", { playerNextNumber });
 			this.sendToPlayer(this.currentTurn, "yourTurn");
 		} catch (e) {
@@ -118,10 +126,10 @@ class gameRoom {
 			this.sendToPlayer(creatorID, "yourTurn", { playerNumber: this.idToIndex(creatorID) });
 			// first turn time out
 			this.timeOut = setTimeout(() => {
-				if(this.currentTurn !== this.creatorID) return; // just in case
-				this.broadcast("timesup", { playerNumber: this.idToIndex(this.creatorID) });
+				if(this.currentTurn !== creatorID) return; // just in case
+				this.broadcast("timesup", { playerNumber: this.idToIndex(creatorID) });
 				this.sendToPlayer(this.creatorID, "alert", "You took too long!");
-				return this.nextTurn(this.currentTurn);
+				return this.nextTurn(currentTurn);
 			}, 11000); // 1 round is 10 seconds, but we have thi function listen for11 because latency
 		} catch (e) {
 			logError(e);
@@ -132,16 +140,28 @@ class gameRoom {
 	// end game
 	// add points
 
+
+
 	// playRound
-	playRound() {
+	playRound(word, playerID) {
 		try {
+			const playerNumberOfThisRound = this.idToIndex(playerID);
+
 			// clear timeout from this.timeOut
-			if(this.timeOut) clearTimeout(this.timeOut);
+			let usedWords = this.usedWords;
+			if(this.usedWords !== 0) {
+				if(this.lastWord.slice(-1) !== word.charAt(0)) {
+					this.broadcast("wordDoesNotBeginWithLastLetter", { playerNumber: playerNumberOfThisRound });
+					return this.nextTurn(this.currentTurn);
+				}
+			}
 		} catch (e) {
 			logError(e);
 			io.to(this.roomID).emit("redirectToMain", "An Unknown server side error has occured.");
 		}
 	}
+
+
 
 	// winner
 	async determineWinner() {
